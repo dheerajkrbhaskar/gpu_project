@@ -99,6 +99,14 @@ void printTableRow(const std::string& label,
               << std::setw(8) << formatCell(speedup) + "x" << " |\n";
 }
 
+double computeSpeedup(double baselineMs, double candidateMs)
+{
+    if (baselineMs <= 0.0 || candidateMs <= 0.0) {
+        return -1.0;
+    }
+    return baselineMs / candidateMs;
+}
+
 void printDetectionSummary(const DetectionSummary& summary)
 {
     std::cout << "\nCrack decision : " << (summary.present ? "DETECTED" : "NOT DETECTED") << "\n";
@@ -289,7 +297,7 @@ int main(int argc, char** argv)
             1.0);
 
         if (config.mode == Mode::Omp) {
-            const double speedup = cpuBaseline.averageTotalMs > 0.0 ? cpuBaseline.averageTotalMs / selectedCpu.averageTotalMs : 1.0;
+            const double speedup = computeSpeedup(cpuBaseline.averageTotalMs, selectedCpu.averageTotalMs);
             printTableRow(selectedCpu.summary.label,
                 selectedCpu.summary.cpuTiming.grayscaleMs,
                 selectedCpu.summary.cpuTiming.sobelMs,
@@ -300,14 +308,17 @@ int main(int argc, char** argv)
                 selectedCpu.summary.cpuTiming.totalMs,
                 speedup);
         } else if (selectedIsGpu) {
-            const double speedup = cpuBaseline.averageTotalMs > 0.0 ? cpuBaseline.averageTotalMs / selectedGpu.averageTotalMs : 1.0;
+            const double speedup = computeSpeedup(cpuBaseline.averageTotalMs, selectedGpu.averageTotalMs);
+            const double h2dMs = selectedGpu.summary.usedCpuFallback ? -1.0 : selectedGpu.summary.gpuTiming.h2dMs;
+            const double kernelMs = selectedGpu.summary.usedCpuFallback ? -1.0 : selectedGpu.summary.gpuTiming.kernelMs;
+            const double d2hMs = selectedGpu.summary.usedCpuFallback ? -1.0 : selectedGpu.summary.gpuTiming.d2hMs;
             printTableRow(selectedGpu.summary.label,
                 -1.0,
                 -1.0,
                 -1.0,
-                selectedGpu.summary.gpuTiming.h2dMs,
-                selectedGpu.summary.gpuTiming.kernelMs,
-                selectedGpu.summary.gpuTiming.d2hMs,
+                h2dMs,
+                kernelMs,
+                d2hMs,
                 selectedGpu.summary.gpuTiming.totalMs,
                 speedup);
             if (selectedGpu.summary.usedCpuFallback && !selectedGpu.summary.note.empty()) {
