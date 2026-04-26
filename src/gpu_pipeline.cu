@@ -7,6 +7,8 @@
 
 #include <cuda_runtime.h>
 
+using namespace std;
+
 namespace crack {
 
 namespace {
@@ -43,9 +45,9 @@ inline void applyCpuFallback(GpuResult& result,
 {
     const CpuResult fallback = runCpuPipeline(inputBgr, CpuOptions{false, threshold});
     result.images = fallback.images;
-    result.timing.h2dMs = -1.0;
-    result.timing.kernelMs = -1.0;
-    result.timing.d2hMs = -1.0;
+    result.timing.grayscaleMs = fallback.timing.grayscaleMs;
+    result.timing.sobelMs = fallback.timing.sobelMs;
+    result.timing.thresholdMs = fallback.timing.thresholdMs;
     result.timing.totalMs = fallback.timing.totalMs;
     result.usedCpuFallback = true;
     result.note = reason;
@@ -168,10 +170,12 @@ GpuResult runGpuPipeline(const Image& inputBgr, const GpuOptions& options)
         cudaCheck(cudaMalloc(&dMag.ptr, grayBytes), "malloc mag");
         cudaCheck(cudaMalloc(&dBin.ptr, grayBytes), "malloc bin");
 
-        EventHandle start, afterH2d, afterKernel, end;
+        EventHandle start, afterH2d, afterGray, afterSobel, afterThreshold, end;
         cudaCheck(cudaEventCreate(&start.handle), "create start event");
         cudaCheck(cudaEventCreate(&afterH2d.handle), "create h2d event");
-        cudaCheck(cudaEventCreate(&afterKernel.handle), "create kernel event");
+        cudaCheck(cudaEventCreate(&afterGray.handle), "create grayscale event");
+        cudaCheck(cudaEventCreate(&afterSobel.handle), "create sobel event");
+        cudaCheck(cudaEventCreate(&afterThreshold.handle), "create threshold event");
         cudaCheck(cudaEventCreate(&end.handle), "create end event");
 
         cudaCheck(cudaEventRecord(start.handle), "record start event");
@@ -184,13 +188,15 @@ GpuResult runGpuPipeline(const Image& inputBgr, const GpuOptions& options)
 
         grayscaleKernel<<<grid, block>>>(dIn.ptr, dGray.ptr, w, h);
         cudaCheck(cudaGetLastError(), "launch grayscale kernel");
+        cudaCheck(cudaEventRecord(afterGray.handle), "record grayscale event");
 
         sobelKernel<<<grid, block, shared>>>(dGray.ptr, dMag.ptr, w, h);
         cudaCheck(cudaGetLastError(), "launch sobel kernel");
+        cudaCheck(cudaEventRecord(afterSobel.handle), "record sobel event");
 
         thresholdKernel<<<grid, block>>>(dMag.ptr, dBin.ptr, w, h, options.threshold);
         cudaCheck(cudaGetLastError(), "launch threshold kernel");
-        cudaCheck(cudaEventRecord(afterKernel.handle), "record kernel event");
+        cudaCheck(cudaEventRecord(afterThreshold.handle), "record threshold event");
 
         result.images.grayscale.resize(w, h, 1);
         result.images.magnitude.resize(w, h, 1);
@@ -202,18 +208,18 @@ GpuResult runGpuPipeline(const Image& inputBgr, const GpuOptions& options)
         cudaCheck(cudaEventRecord(end.handle), "record end event");
         cudaCheck(cudaEventSynchronize(end.handle), "synchronize end event");
 
-        float h2dMs = 0.0f;
-        float kernelMs = 0.0f;
-        float d2hMs = 0.0f;
+        float grayscaleMs = 0.0f;
+        float sobelMs = 0.0f;
+        float thresholdMs = 0.0f;
         float totalMs = 0.0f;
-        cudaCheck(cudaEventElapsedTime(&h2dMs, start.handle, afterH2d.handle), "elapsed h2d time");
-        cudaCheck(cudaEventElapsedTime(&kernelMs, afterH2d.handle, afterKernel.handle), "elapsed kernel time");
-        cudaCheck(cudaEventElapsedTime(&d2hMs, afterKernel.handle, end.handle), "elapsed d2h time");
+        cudaCheck(cudaEventElapsedTime(&grayscaleMs, afterH2d.handle, afterGray.handle), "elapsed grayscale time");
+        cudaCheck(cudaEventElapsedTime(&sobelMs, afterGray.handle, afterSobel.handle), "elapsed sobel time");
+        cudaCheck(cudaEventElapsedTime(&thresholdMs, afterSobel.handle, afterThreshold.handle), "elapsed threshold time");
         cudaCheck(cudaEventElapsedTime(&totalMs, start.handle, end.handle), "elapsed total time");
 
-        result.timing.h2dMs = static_cast<double>(h2dMs);
-        result.timing.kernelMs = static_cast<double>(kernelMs);
-        result.timing.d2hMs = static_cast<double>(d2hMs);
+        result.timing.grayscaleMs = static_cast<double>(grayscaleMs);
+        result.timing.sobelMs = static_cast<double>(sobelMs);
+        result.timing.thresholdMs = static_cast<double>(thresholdMs);
         result.timing.totalMs = static_cast<double>(totalMs);
     } catch (const std::exception& e) {
         applyCpuFallback(result,

@@ -27,11 +27,16 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 add_executable(gpu_crack_detection
     src/main.cpp
+    src/report.cpp
     src/cpu_pipeline.cpp
+    src/utils.cpp
+    src/timer.cpp
     $<$<BOOL:${GPU_CRACK_HAS_CUDA}>:src/gpu_pipeline.cu>
     $<$<NOT:$<BOOL:${GPU_CRACK_HAS_CUDA}>>:src/gpu_pipeline_stub.cpp>)
 
 target_include_directories(gpu_crack_detection PRIVATE src)
+target_include_directories(gpu_crack_detection PRIVATE src/include)
+target_include_directories(gpu_crack_detection PRIVATE includes)
 target_link_libraries(gpu_crack_detection PRIVATE)
 target_compile_definitions(gpu_crack_detection PRIVATE GPU_CRACK_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}")
 

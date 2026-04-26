@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+using namespace std;
+
 namespace crack {
 
 namespace {

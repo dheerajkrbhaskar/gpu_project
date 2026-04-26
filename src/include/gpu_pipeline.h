@@ -5,9 +5,9 @@
 namespace crack {
 
 struct GpuTiming {
-    double h2dMs = 0.0;
-    double kernelMs = 0.0;
-    double d2hMs = 0.0;
+    double grayscaleMs = 0.0;
+    double sobelMs = 0.0;
+    double thresholdMs = 0.0;
     double totalMs = 0.0;
 };
 

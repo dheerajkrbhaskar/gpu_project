@@ -1,84 +1,45 @@
-#pragma once
+#include "utils.h"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <string>
-#include <vector>
-
-#include "timer.h"
-
-#ifndef GPU_CRACK_PYTHON_EXECUTABLE
-#define GPU_CRACK_PYTHON_EXECUTABLE "python3"
-#endif
 
 namespace crack {
 
-struct Image {
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    std::vector<unsigned char> data;
+bool Image::empty() const
+{
+    return width <= 0 || height <= 0 || channels <= 0 || data.empty();
+}
 
-    bool empty() const
-    {
-        return width <= 0 || height <= 0 || channels <= 0 || data.empty();
-    }
+size_t Image::pixelCount() const
+{
+    return static_cast<size_t>(width) * static_cast<size_t>(height);
+}
 
-    size_t pixelCount() const
-    {
-        return static_cast<size_t>(width) * static_cast<size_t>(height);
-    }
+void Image::resize(int newWidth, int newHeight, int newChannels)
+{
+    width = newWidth;
+    height = newHeight;
+    channels = newChannels;
+    data.assign(static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(channels), 0);
+}
 
-    void resize(int newWidth, int newHeight, int newChannels)
-    {
-        width = newWidth;
-        height = newHeight;
-        channels = newChannels;
-        data.assign(static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(channels), 0);
-    }
+unsigned char* Image::rowPtr(int y)
+{
+    return data.data() + static_cast<size_t>(y) * static_cast<size_t>(width) * static_cast<size_t>(channels);
+}
 
-    unsigned char* rowPtr(int y)
-    {
-        return data.data() + static_cast<size_t>(y) * static_cast<size_t>(width) * static_cast<size_t>(channels);
-    }
+const unsigned char* Image::rowPtr(int y) const
+{
+    return data.data() + static_cast<size_t>(y) * static_cast<size_t>(width) * static_cast<size_t>(channels);
+}
 
-    const unsigned char* rowPtr(int y) const
-    {
-        return data.data() + static_cast<size_t>(y) * static_cast<size_t>(width) * static_cast<size_t>(channels);
-    }
-};
-
-enum class Mode {
-    Cpu,
-    Omp,
-    Gpu
-};
-
-struct ProcessedImages {
-    Image grayscale;
-    Image magnitude;
-    Image binary;
-};
-
-struct AppConfig {
-    std::string inputPath;
-    Mode mode = Mode::Cpu;
-    int repeat = 3;
-    unsigned char threshold = 60;
-    bool showHelp = false;
-};
-
-inline std::string modeLabel(Mode mode)
+std::string modeLabel(Mode mode)
 {
     switch (mode) {
     case Mode::Cpu:
@@ -91,7 +52,7 @@ inline std::string modeLabel(Mode mode)
     return "cpu";
 }
 
-inline Mode parseMode(const std::string& value)
+Mode parseMode(const std::string& value)
 {
     std::string lowered = value;
     std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
@@ -111,7 +72,7 @@ inline Mode parseMode(const std::string& value)
     throw std::invalid_argument("Unknown mode: " + value);
 }
 
-inline std::string shellQuote(const std::string& value)
+std::string shellQuote(const std::string& value)
 {
     std::string quoted = "'";
     for (char ch : value) {
@@ -125,7 +86,7 @@ inline std::string shellQuote(const std::string& value)
     return quoted;
 }
 
-inline std::string runCommandCapture(const std::string& command)
+std::string runCommandCapture(const std::string& command)
 {
     std::array<char, 4096> buffer{};
     std::string output;
@@ -158,7 +119,7 @@ inline std::string runCommandCapture(const std::string& command)
     return output;
 }
 
-inline AppConfig parseArguments(int argc, char** argv)
+AppConfig parseArguments(int argc, char** argv)
 {
     AppConfig config;
 
@@ -197,7 +158,7 @@ inline AppConfig parseArguments(int argc, char** argv)
     return config;
 }
 
-inline void printUsage(std::ostream& stream, const char* programName)
+void printUsage(std::ostream& stream, const char* programName)
 {
     stream << "Usage: " << programName
            << " --input <path> [--mode cpu|omp|gpu] [--repeat N] [--threshold V]\n"
@@ -207,7 +168,7 @@ inline void printUsage(std::ostream& stream, const char* programName)
            << "  " << programName << " --input data/CrackNJ156_Up/000.png --mode omp --repeat 5\n";
 }
 
-inline Image loadImageAsBgr(const std::string& path)
+Image loadImageAsBgr(const std::string& path)
 {
     const std::string script =
         "import sys\n"
@@ -253,12 +214,12 @@ inline Image loadImageAsBgr(const std::string& path)
     return image;
 }
 
-inline void ensureOutputDirectory()
+void ensureOutputDirectory()
 {
     std::filesystem::create_directories("outputs");
 }
 
-inline std::string sanitizeStem(const std::filesystem::path& path)
+std::string sanitizeStem(const std::filesystem::path& path)
 {
     std::string stem = path.stem().string();
     if (stem.empty()) {
@@ -267,12 +228,12 @@ inline std::string sanitizeStem(const std::filesystem::path& path)
     return stem;
 }
 
-inline std::string makeOutputStem(const std::filesystem::path& inputPath, const std::string& label, const std::string& timestamp)
+std::string makeOutputStem(const std::filesystem::path& inputPath, const std::string& label, const std::string& timestamp)
 {
     return sanitizeStem(inputPath) + "_" + label + "_" + timestamp;
 }
 
-inline void saveImagePgm(const std::filesystem::path& path, const Image& image)
+void saveImagePgm(const std::filesystem::path& path, const Image& image)
 {
     if (image.channels != 1) {
         throw std::runtime_error("PGM output requires a single-channel image");
@@ -287,7 +248,7 @@ inline void saveImagePgm(const std::filesystem::path& path, const Image& image)
     file.write(reinterpret_cast<const char*>(image.data.data()), static_cast<std::streamsize>(image.data.size()));
 }
 
-inline void saveImagePng(const std::filesystem::path& path, const Image& image, bool treatInputAsBgr)
+void saveImagePng(const std::filesystem::path& path, const Image& image, bool treatInputAsBgr)
 {
     if (image.channels != 1 && image.channels != 3) {
         throw std::runtime_error("PNG output requires 1 or 3 channels");
@@ -342,7 +303,7 @@ inline void saveImagePng(const std::filesystem::path& path, const Image& image, 
     }
 }
 
-inline double binaryMismatchPercent(const Image& lhs, const Image& rhs)
+double binaryMismatchPercent(const Image& lhs, const Image& rhs)
 {
     if (lhs.width != rhs.width || lhs.height != rhs.height || lhs.channels != 1 || rhs.channels != 1) {
         throw std::runtime_error("Cannot compare binary images with different sizes or channel counts");
@@ -362,7 +323,7 @@ inline double binaryMismatchPercent(const Image& lhs, const Image& rhs)
     return 100.0 * static_cast<double>(mismatchedPixels) / static_cast<double>(lhs.pixelCount());
 }
 
-inline double meanAbsoluteDifference(const Image& lhs, const Image& rhs)
+double meanAbsoluteDifference(const Image& lhs, const Image& rhs)
 {
     if (lhs.width != rhs.width || lhs.height != rhs.height || lhs.channels != rhs.channels) {
         throw std::runtime_error("Cannot compare images with different sizes or channel counts");
@@ -376,7 +337,7 @@ inline double meanAbsoluteDifference(const Image& lhs, const Image& rhs)
     return lhs.data.empty() ? 0.0 : totalDifference / static_cast<double>(lhs.data.size());
 }
 
-inline size_t largestConnectedComponentArea(const Image& binary, unsigned char edgeCutoff)
+size_t largestConnectedComponentArea(const Image& binary, unsigned char edgeCutoff)
 {
     if (binary.channels != 1) {
         throw std::runtime_error("Connected-component metric expects a single-channel image");
@@ -442,7 +403,7 @@ inline size_t largestConnectedComponentArea(const Image& binary, unsigned char e
     return largestArea;
 }
 
-inline double largestComponentAreaPercent(const Image& magnitude, unsigned char edgeCutoff = 20)
+double largestComponentAreaPercent(const Image& magnitude, unsigned char edgeCutoff)
 {
     if (magnitude.pixelCount() == 0) {
         return 0.0;
