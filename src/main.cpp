@@ -78,6 +78,17 @@ std::string formatCell(double value)
     return stream.str();
 }
 
+std::string formatSpeedup(double value)
+{
+    if (value < 0.0) {
+        return "-";
+    }
+
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(2) << value << 'x';
+    return stream.str();
+}
+
 void printTableRow(const std::string& label,
                    double grayMs,
                    double sobelMs,
@@ -96,7 +107,7 @@ void printTableRow(const std::string& label,
               << std::setw(9) << formatCell(kernelMs) << " | "
               << std::setw(7) << formatCell(d2hMs) << " | "
               << std::setw(9) << formatCell(totalMs) << " | "
-              << std::setw(8) << formatCell(speedup) + "x" << " |\n";
+              << std::setw(8) << formatSpeedup(speedup) << " |\n";
 }
 
 double computeSpeedup(double baselineMs, double candidateMs)
@@ -353,15 +364,15 @@ int main(int argc, char** argv)
             std::cout << "Mean absolute magnitude difference: " << formatMilliseconds(magnitudeDiff) << "\n";
         }
 
-                const Image& selectedMagnitude = selectedIsGpu ? selectedGpu.summary.images.magnitude : selectedCpu.summary.images.magnitude;
-                DetectionSummary detection{
-                    false,
-                    largestComponentAreaPercent(selectedMagnitude, 20),
-                    20,
-                    0.20,
-                };
-                detection.present = detection.percent >= detection.thresholdPercent;
-                printDetectionSummary(detection);
+        const Image& selectedMagnitude = selectedIsGpu ? selectedGpu.summary.images.magnitude : selectedCpu.summary.images.magnitude;
+        DetectionSummary detection{
+            false,
+            largestComponentAreaPercent(selectedMagnitude, 20),
+            20,
+            0.20,
+        };
+        detection.present = detection.percent >= detection.thresholdPercent;
+        printDetectionSummary(detection);
 
         std::cout << "\nSaved outputs under outputs/ with timestamp " << timestamp << "\n";
         return 0;
